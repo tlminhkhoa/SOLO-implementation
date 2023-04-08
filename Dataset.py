@@ -26,7 +26,7 @@ class CocoV2(Dataset):
   CLASSES = COCO_CLASSES
   def __init__(self,annotations_file, transforms=None, target_transform=None):
     self.annotations_file = annotations_file
-    self.coco = COCO(annFile)
+    self.coco = COCO(self.annotations_file)
 
     whole_image_ids = list(sorted(self.coco.imgs.keys()))
     self.ids = []
@@ -96,9 +96,13 @@ class CocoV2(Dataset):
     # print(target['boxes'])
     target['image_id'] = torch.as_tensor(target['image_id'], dtype=torch.int32)
     target['boxes'] = torch.as_tensor(target['boxes'], dtype=torch.float32)
-    # print(target['boxes'])
+    # print(target['masks'])
     # target['masks'] = torch.as_tensor(target['masks'], dtype=torch.uint8)
+    # print(np.array(target['masks']))
     # target['masks'] = torch.from_numpy(np.array(target['masks']))
+    print("stack mask")
+    target['masks'] = torch.stack(target['masks'])
+    # print(target['masks'].shape)
     target['labels'] = torch.as_tensor(target['labels'], dtype=torch.int64)
     target['area'] = torch.as_tensor(target['area'], dtype=torch.float32)
     target['iscrowd'] = torch.as_tensor(target['iscrowd'], dtype=torch.uint8)
@@ -136,8 +140,8 @@ class CocoV2(Dataset):
         # Strangely, when only the mask is converted to NumPy, an error occurs.
         # It seems that albumentations does not support it.
         masks = [self.coco.annToMask(annot) for annot in annots]
-
-        # mask = torch.LongTensor(np.max(np.stack([self.annotations.annToMask(ann) * ann["category_id"] 
+        # print([x.shape for x in masks])
+        # masks = torch.LongTensor(np.max(np.stack([self.coco.annToMask(ann) * ann["category_id"] 
         #                                          for ann in annots]), axis=0)).unsqueeze(0)
-
+        # print(masks[0,...].shape)
         return {'image_id': torch.tensor([image_id]), 'boxes': boxes, 'masks': masks, 'labels': labels, 'area': area, 'iscrowd': iscrowd}
