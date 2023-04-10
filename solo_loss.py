@@ -54,7 +54,7 @@ class SoloLoss():
                         gt_mask_list,
                         featmap_sizes=featmap_sizes
             )
-        print(mask_label_ls)
+        # print(mask_label_ls)
 
         # ins
         mask_labels = [torch.cat([mask_labels_level_img[ins_ind_labels_level_img, ...]
