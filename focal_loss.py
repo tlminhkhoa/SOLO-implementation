@@ -1,9 +1,13 @@
 # https://github.com/WXinlong/SOLO/blob/master/mmdet/models/losses/focal_loss.py
 
-
+import sys
+import numpy
+numpy.set_printoptions(threshold=sys.maxsize)
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+# from sigmoid_focal_loss import sigmoid_focal_loss as _sigmoid_focal_loss
+from torchvision.ops import sigmoid_focal_loss as _sigmoid_focal_loss
 def reduce_loss(loss, reduction):
     """Reduce loss as specified.
     Args:
@@ -48,6 +52,21 @@ def weight_reduce_loss(loss, weight=None, reduction='mean', avg_factor=None):
             raise ValueError('avg_factor can not be used with reduction="sum"')
     return loss
 
+# def sigmoid_focal_loss(pred,
+#                        target,
+#                        weight=None,
+#                        gamma=2.0,
+#                        alpha=0.25,
+#                        reduction='mean',
+#                        avg_factor=None):
+#     # Function.apply does not accept keyword arguments, so the decorator
+#     # "weighted_loss" is not applicable
+#     loss = _sigmoid_focal_loss(pred, target, gamma, alpha)
+#     # TODO: find a proper way to handle the shape of weight
+#     if weight is not None:
+#         weight = weight.view(-1, 1)
+#     loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
+#     return loss
 
 # This method is only for debugging
 def sigmoid_focal_loss(pred,
@@ -58,7 +77,32 @@ def sigmoid_focal_loss(pred,
                           reduction='mean',
                           avg_factor=None):
     pred_sigmoid = pred.sigmoid()
-    target_onehot = F.one_hot(target.long(), pred_sigmoid.size(-1)).type_as(pred)
+    # with open("./target.txt", 'w') as f:
+    #   for s in target:
+    #       f.write(str(s) + '\n')
+    # target_before = target
+    # print(target_before.shape)
+    # print(type(target_before))
+    try:
+      target_onehot = F.one_hot(target.long(),  pred_sigmoid.size(-1)).type_as(pred)
+    except Exception as error:
+      import pandas as pd
+      df = pd.DataFrame(target.numpy())
+      df.to_csv("./target.csv")
+      print(error)
+
+
+    # target_after = target_onehot
+    # with open("./target_after.txt", 'w') as f:
+    #   for s in target:
+    #       f.write(str(s) + '\n')
+    # print(target_after.shape)
+    # print(type(target_after))
+
+    # print(torch.eq(target_before, target_after))
+    # target_onehot = target.view(1, -1).type_as(pred)
+
+
     pt = (1 - pred_sigmoid) * target_onehot + pred_sigmoid * (1 - target_onehot)
     focal_weight = (alpha * target_onehot + (1 - alpha) *
                     (1 - target_onehot)) * pt.pow(gamma)
@@ -66,6 +110,41 @@ def sigmoid_focal_loss(pred,
         pred, target_onehot, reduction='none') * focal_weight
     loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
     return loss
+
+# # This method is only for debugging
+# def py_sigmoid_focal_loss(pred,
+#                           target,
+#                           weight=None,
+#                           gamma=2.0,
+#                           alpha=0.25,
+#                           reduction='mean',
+#                           avg_factor=None):
+#     pred_sigmoid = pred.sigmoid()
+#     target = target.type_as(pred)
+#     pt = (1 - pred_sigmoid) * target + pred_sigmoid * (1 - target)
+#     focal_weight = (alpha * target + (1 - alpha) *
+#                     (1 - target)) * pt.pow(gamma)
+#     loss = F.binary_cross_entropy_with_logits(
+#         pred, target, reduction='none') * focal_weight
+#     loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
+#     return loss
+
+
+# def sigmoid_focal_loss(pred,
+#                        target,
+#                        weight=None,
+#                        gamma=2.0,
+#                        alpha=0.25,
+#                        reduction='mean',
+#                        avg_factor=None):
+#     # Function.apply does not accept keyword arguments, so the decorator
+#     # "weighted_loss" is not applicable
+#     loss = py_sigmoid_focal_loss(pred, target, gamma, alpha)
+#     # TODO: find a proper way to handle the shape of weight
+#     if weight is not None:
+#         weight = weight.view(-1, 1)
+#     loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
+#     return loss
 
 
 # def sigmoid_focal_loss(pred,

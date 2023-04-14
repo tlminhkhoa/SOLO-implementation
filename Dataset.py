@@ -31,25 +31,30 @@ class CocoV2(Dataset):
     whole_image_ids = list(sorted(self.coco.imgs.keys()))
     self.ids = []
     self.no_anno_list = []
+    self.count_length_2 = 0
+
+    # since coco catId is not continuous
+    self.coco_cat_ids = sorted(self.coco.getCatIds())
+    self.coco_cat_ids_to_continuous_ids = {coco_id: i+1 for i, coco_id in enumerate(self.coco_cat_ids)}
+     # map cat id to label
+    self.coco_ids_to_class_names  = {category['id']: category['name'] for category in self.coco.loadCats(self.coco_cat_ids)}
 
     # remove img without bbox or anno
     for idx in whole_image_ids:
       annotations_ids = self.coco.getAnnIds(imgIds=idx, iscrowd=False)
       # return annotations , can have many
       annotations = self.coco.loadAnns(annotations_ids)
-      if len(annotations_ids) == 0:
-        self.no_anno_list.append(idx)
-      if self._has_only_empty_bbox(annotations):
+      # if len(annotations_ids) == 0:
+      #   self.no_anno_list.append(idx)
+      #   continue
+      if self._has_only_empty_bbox(annotations) or len(annotations_ids) == 0:
         self.no_anno_list.append(idx)
       else:
         self.ids.append(idx)
 
-    # since coco catId is not continuous
-    self.coco_cat_ids = sorted(self.coco.getCatIds())
-    self.coco_cat_ids_to_continuous_ids = {coco_id: i+1 for i, coco_id in enumerate(self.coco_cat_ids)}
 
-    # map cat id to label
-    self.coco_ids_to_class_names  = {category['id']: category['name'] for category in self.coco.loadCats(self.coco_cat_ids)}
+
+
 
     self.transforms = transforms
 
@@ -65,9 +70,14 @@ class CocoV2(Dataset):
 
   # check if the bbox is empty
   def _has_only_empty_bbox(self, annotations):
+
       for annot in annotations:
         if annot["bbox"] == []:
           return True
+        # print(self.coco_cat_ids_to_continuous_ids[annot["category_id"]])
+        if 80 == self.coco_cat_ids_to_continuous_ids[annot["category_id"]]:
+          return True
+
         for o in annot['bbox'][2:]:
           if o <= 1:
             return True
@@ -79,12 +89,20 @@ class CocoV2(Dataset):
   def __getitem__(self, index):
     image_id = self.ids[index]
     image = self._load_image(image_id)
+    if len(image.shape) == 2:
+      self.count_length_2 +=1
+      image_id = self.ids[1]
+      image = self._load_image(image_id)
     target = self._load_target(image_id)
     # image.shape = (230, 352, 3) , ori_shape = (230, 352)
     img_meta = dict(ori_shape=image.shape[:2], image_id=image_id)
 
-
+    # print(image.shape)
     if self.transforms is not None:
+      # try:
+      #   transformed = self.transforms(image=image,masks=target['masks'], bboxes=target['boxes'],category_ids=target['labels'])
+      # except:
+      #   print(image_id)
       transformed = self.transforms(image=image,masks=target['masks'], bboxes=target['boxes'],category_ids=target['labels'])
       image = transformed['image']
       # update img after transform
@@ -100,13 +118,24 @@ class CocoV2(Dataset):
     # target['masks'] = torch.as_tensor(target['masks'], dtype=torch.uint8)
     # print(np.array(target['masks']))
     # target['masks'] = torch.from_numpy(np.array(target['masks']))
-    print("stack mask")
     target['masks'] = torch.stack(target['masks'])
-    # print(target['masks'].shape)
     target['labels'] = torch.as_tensor(target['labels'], dtype=torch.int64)
     target['area'] = torch.as_tensor(target['area'], dtype=torch.float32)
     target['iscrowd'] = torch.as_tensor(target['iscrowd'], dtype=torch.uint8)
-    # print(target['boxes'].shape)
+    
+
+    gt_bboxes_raw =target['boxes']
+
+    try:
+      gt_areas = torch.sqrt(
+            (gt_bboxes_raw[:, 2] - gt_bboxes_raw[:, 0]) * (gt_bboxes_raw[:, 3] - gt_bboxes_raw[:, 1])
+        )
+    except:
+      print("use 1")
+      image,target ,img_meta = self.__getitem__(1)
+
+    # print("add 1")
+
     return image,target ,img_meta
 
 
@@ -143,5 +172,30 @@ class CocoV2(Dataset):
         # print([x.shape for x in masks])
         # masks = torch.LongTensor(np.max(np.stack([self.coco.annToMask(ann) * ann["category_id"] 
         #                                          for ann in annots]), axis=0)).unsqueeze(0)
-        # print(masks[0,...].shape)
+        # print({'image_id': torch.tensor([image_id]), 'boxes': boxes, 'masks': masks, 'labels': labels, 'area': area, 'iscrowd': iscrowd})
         return {'image_id': torch.tensor([image_id]), 'boxes': boxes, 'masks': masks, 'labels': labels, 'area': area, 'iscrowd': iscrowd}
+
+
+from torch.utils.data import DataLoader
+
+def collate_fn(batch):
+    return tuple(zip(*batch))
+
+
+def get_dataloader( annFile, transform, batch_size, num_workers, shuffle):
+    # image_path = data_root_path / image_path
+    # annFile = data_root_path / annFile
+
+    dataset = CocoV2(annFile, transforms = transform)
+    # dataset = COCODataset(image_path=image_path, annFile=annFile, transforms=transform)
+    # dataset.set_transforms(transforms=transform)
+
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        collate_fn=collate_fn
+    )
+
+    return loader

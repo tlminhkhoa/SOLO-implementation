@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import sys
 sys.path.append("/content/drive/MyDrive/SOLO-implementation/utils")
 
-from utils import matrix_nms
+from .matrix_nms import matrix_nms
 
 
 class SoloPost:
@@ -24,7 +24,7 @@ class SoloPost:
         assert len(seg_preds) == len(cate_preds)
         num_levels = len(cate_preds)
         featmap_size = seg_preds[0].size()[-2:]
-
+        print(seg_preds)
         result_list = []
         for img_id in range(len(img_metas)):
             cate_pred_list = [
@@ -54,7 +54,7 @@ class SoloPost:
                        ori_shape,
                        post_process_cfg):
         assert len(cate_preds) == len(seg_preds)
-
+        
         # overall info.
         h, w = img_shape
         upsampled_size_out = (featmap_size[0] * 4, featmap_size[1] * 4)

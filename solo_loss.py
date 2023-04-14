@@ -31,6 +31,7 @@ class SoloLoss():
                  scale_ranges=((1, 96), (48, 192), (96, 384), (192, 768), (384, 2048))):
 
         self.cate_out_channels = num_classes - 1
+        # self.cate_out_channels = num_classes 
         self.sigma = sigma
         self.strides = strides
         self.grid_num = grid_num
